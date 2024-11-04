@@ -1,15 +1,14 @@
 # actions/github-script
 
-[![.github/workflows/integration.yml](https://github.com/actions/github-script/workflows/Integration/badge.svg?event=push&branch=main)](https://github.com/actions/github-script/actions?query=workflow%3AIntegration+branch%3Amain+event%3Apush)
-[![.github/workflows/ci.yml](https://github.com/actions/github-script/workflows/CI/badge.svg?event=push&branch=main)](https://github.com/actions/github-script/actions?query=workflow%3ACI+branch%3Amain+event%3Apush)
-[![.github/workflows/licensed.yml](https://github.com/actions/github-script/workflows/Licensed/badge.svg?event=push&branch=main)](https://github.com/actions/github-script/actions?query=workflow%3ALicensed+branch%3Amain+event%3Apush)
+[![Integration](https://github.com/actions/github-script/actions/workflows/integration.yml/badge.svg?branch=main&event=push)](https://github.com/actions/github-script/actions/workflows/integration.yml)
+[![CI](https://github.com/actions/github-script/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/actions/github-script/actions/workflows/ci.yml)
+[![Licensed](https://github.com/actions/github-script/actions/workflows/licensed.yml/badge.svg?branch=main&event=push)](https://github.com/actions/github-script/actions/workflows/licensed.yml)
 
 This action makes it easy to quickly write a script in your workflow that
 uses the GitHub API and the workflow run context.
 
-In order to use this action, a `script` input is provided. The value of that
-input should be the body of an asynchronous function call. The following
-arguments will be provided:
+To use this action, provide an input named `script` that contains the body of an asynchronous function call.
+The following arguments will be provided:
 
 - `github` A pre-authenticated
   [octokit/rest.js](https://octokit.github.io/rest.js) client with pagination plugins
@@ -34,13 +33,21 @@ documentation.
 
 ## Breaking Changes
 
-### Breaking changes in V6
+### V7
 
-Version 6 of this action updated the runtime to Node 16 - https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#example-using-nodejs-v16
+Version 7 of this action updated the runtime to Node 20 - https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runs-for-javascript-actions
+
+All scripts are now run with Node 20 instead of Node 16 and are affected by any breaking changes between Node 16 and 20
+
+The `previews` input now only applies to GraphQL API calls as REST API previews are no longer necessary - https://github.blog/changelog/2021-10-14-rest-api-preview-promotions/.
+
+### V6
+
+Version 6 of this action updated the runtime to Node 16 - https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runs-for-javascript-actions
 
 All scripts are now run with Node 16 instead of Node 12 and are affected by any breaking changes between Node 12 and 16.
 
-### Breaking changes in V5
+### V5
 
 Version 5 of this action includes the version 5 of `@actions/github` and `@octokit/plugin-rest-endpoint-methods`. As part of this update, the Octokit context available via `github` no longer has REST methods directly. These methods are available via `github.rest.*` - https://github.com/octokit/plugin-rest-endpoint-methods.js/releases/tag/v5.0.0
 
@@ -58,7 +65,7 @@ The return value of the script will be in the step's outputs under the
 "result" key.
 
 ```yaml
-- uses: actions/github-script@v6
+- uses: actions/github-script@v7
   id: set-result
   with:
     script: return "Hello!"
@@ -77,12 +84,53 @@ output of a github-script step. For some workflows, string encoding is preferred
 `result-encoding` input:
 
 ```yaml
-- uses: actions/github-script@v6
+- uses: actions/github-script@v7
   id: my-script
   with:
     result-encoding: string
     script: return "I will be string (not JSON) encoded!"
 ```
+
+## Retries
+
+By default, requests made with the `github` instance will not be retried. You can configure this with the `retries` option:
+
+```yaml
+- uses: actions/github-script@v7
+  id: my-script
+  with:
+    result-encoding: string
+    retries: 3
+    script: |
+      github.rest.issues.get({
+        issue_number: context.issue.number,
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+      })
+```
+
+In this example, request failures from `github.rest.issues.get()` will be retried up to 3 times.
+
+You can also configure which status codes should be exempt from retries via the `retry-exempt-status-codes` option:
+
+```yaml
+- uses: actions/github-script@v7
+  id: my-script
+  with:
+    result-encoding: string
+    retries: 3
+    retry-exempt-status-codes: 400,401
+    script: |
+      github.rest.issues.get({
+        issue_number: context.issue.number,
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+      })
+```
+
+By default, the following status codes will not be retried: `400, 401, 403, 404, 422` [(source)](https://github.com/octokit/plugin-retry.js/blob/9a2443746c350b3beedec35cf26e197ea318a261/src/index.ts#L14).
+
+These retries are implemented using the [octokit/plugin-retry.js](https://github.com/octokit/plugin-retry.js) plugin. The retries use [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff) to space out retries. ([source](https://github.com/octokit/plugin-retry.js/blob/9a2443746c350b3beedec35cf26e197ea318a261/src/error-request.ts#L13))
 
 ## Examples
 
@@ -95,7 +143,7 @@ By default, github-script will use the token provided to your workflow.
 
 ```yaml
 - name: View context attributes
-  uses: actions/github-script@v6
+  uses: actions/github-script@v7
   with:
     script: console.log(context)
 ```
@@ -111,7 +159,7 @@ jobs:
   comment:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
@@ -133,7 +181,7 @@ jobs:
   apply-label:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -155,7 +203,7 @@ jobs:
   welcome:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             // Get a list of all issues created by the PR opener
@@ -184,7 +232,7 @@ jobs:
               repo: context.repo.repo,
               body: `**Welcome**, new contributor!
 
-                Please make sure you're read our [contributing guide](CONTRIBUTING.md) and we look forward to reviewing your Pull request shortly ✨`
+                Please make sure you've read our [contributing guide](CONTRIBUTING.md) and we look forward to reviewing your Pull request shortly ✨`
             })
 ```
 
@@ -200,7 +248,7 @@ jobs:
   diff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             const diff_url = context.payload.pull_request.diff_url
@@ -224,7 +272,7 @@ jobs:
   list-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             const query = `query($owner:String!, $name:String!, $label:String!) {
@@ -257,8 +305,8 @@ jobs:
   echo-input:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/github-script@v6
+      - uses: actions/checkout@v3
+      - uses: actions/github-script@v7
         with:
           script: |
             const script = require('./path/to/script.js')
@@ -295,8 +343,8 @@ jobs:
   echo-input:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/github-script@v6
+      - uses: actions/checkout@v3
+      - uses: actions/github-script@v7
         env:
           SHA: '${{env.parentSHA}}'
         with:
@@ -333,14 +381,14 @@ jobs:
   echo-input:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          node-version: 14
+          node-version: '20.x'
       - run: npm ci
       # or one-off:
       - run: npm install execa
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             const execa = require('execa')
@@ -355,8 +403,11 @@ jobs:
 To import an ESM file, you'll need to reference your script by an absolute path and ensure you have a `package.json` file with `"type": "module"` specified.
 
 For a script in your repository `src/print-stuff.js`:
+
 ```js
-export default function printStuff() { console.log('stuff') }
+export default function printStuff() {
+  console.log('stuff')
+}
 ```
 
 ```yaml
@@ -366,13 +417,31 @@ jobs:
   print-stuff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/github-script@v6
+      - uses: actions/checkout@v3
+      - uses: actions/github-script@v7
         with:
           script: |
             const { default: printStuff } = await import('${{ github.workspace }}/src/print-stuff.js')
 
             await printStuff()
+```
+
+### Use scripts with jsDoc support
+
+If you want type support for your scripts, you could use the command below to install the
+`github-script` type declaration.
+```sh
+$ npm i -D @types/github-script@github:actions/github-script
+```
+
+And then add the `jsDoc` declaration to your script like this:
+```js
+// @ts-check
+/** @param {import('@types/github-script').AsyncFunctionArguments} AsyncFunctionArguments */
+export default async ({ core, context }) => {
+  core.debug("Running something at the moment");
+  return context.actor;
+};
 ```
 
 ### Use env as input
@@ -386,7 +455,7 @@ jobs:
   echo-input:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         env:
           FIRST_NAME: Mona
           LAST_NAME: Octocat
@@ -414,7 +483,7 @@ jobs:
   apply-label:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.MY_PAT }}
           script: |
